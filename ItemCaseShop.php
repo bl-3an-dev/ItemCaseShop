@@ -4,14 +4,15 @@
  * @name ItemCaseShop
  * @main ItemCaseShop\Loader
  * @author bl_3an_dev
- * @version 1.0.0v
+ * @version 1.0.1v
  * @api 3.0.0
  */
 
 
 /** - GITHUB: https://github.com/bl-3an-dev/ItemCaseShop 
  *  - LICENSE : https://github.com/bl-3an-dev/ItemCaseShop/blob/main/LICENSE
- *  - First Release: 2021-02-04-PM-11-31 / 1.0.0v
+ *  - 1.0.0v | 첫 릴리즈
+ *  - 1.0.1v | is_numeric 관련 추가
  *  - 구동하는데 앞서 EconomyAPI 플러그인이 필요합니다.
  */
 
@@ -233,7 +234,7 @@ class ShopCommand extends Command{
 
         if ($args[0] === 'add' or $args[0] === 'a'){
 
-            if (count($args) < 3){
+            if (count($args) < 3 or !is_numeric($args[1]) or !is_numeric($args[2])){
 
                 $sender->sendMessage($this->owner->prefix . ' /shop [add|a] [구매가] [판매가] : 상점 아이템을 추가합니다');
 
@@ -288,7 +289,7 @@ class BuyCommand extends Command{
 
     public function execute(CommandSender $sender, string $commandLabel, array $args): bool {
 
-        if (!isset($args[0])){
+        if (!isset($args[0]) or !is_numeric($args[0])){
 
             $sender->sendMessage($this->owner->prefix . ' /구매 (갯수) | 선택한 상점 아이템을 갯수만큼 구매합니다');
 
@@ -316,13 +317,13 @@ class BuyCommand extends Command{
         $item = Item::jsonDeserialize([
             'id' => $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['id'],
             'damage' => $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['dmg'],
-            'count' => $args[0],
+            'count' => (int) $args[0],
             'nbt' => base64_decode($this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['nbt'], true)
         ]);
 
         $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
-        EconomyAPI::getInstance()->reduceMoney($sender, $price * $args[0]);
+        EconomyAPI::getInstance()->reduceMoney($sender, $price * (int) $args[0]);
 
         $after = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
@@ -354,7 +355,7 @@ class SellCommand extends Command{
 
     public function execute(CommandSender $sender, string $commandLabel, array $args): bool {
 
-        if (!isset($args[0])){
+        if (!isset($args[0]) or !is_numeric($args[0])){
 
             $sender->sendMessage($this->owner->prefix . ' /판매 (갯수) | 선택한 상점 아이템을 갯수만큼 판매합니다');
 
@@ -373,7 +374,7 @@ class SellCommand extends Command{
         $item = Item::jsonDeserialize([
             'id' => $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['id'],
             'damage' => $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['dmg'],
-            'count' => $args[0],
+            'count' => (int) $args[0],
             'nbt' => base64_decode($this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['nbt'], true)
         ]);
 
@@ -389,7 +390,7 @@ class SellCommand extends Command{
 
         $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
-        EconomyAPI::getInstance()->addMoney($sender, $price * $args[0]);
+        EconomyAPI::getInstance()->addMoney($sender, $price * (int) $args[0]);
 
         $after = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
