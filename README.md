@@ -1,6 +1,8 @@
 # ItemCaseShop
 PocketMine-MP Plugin | ItemCaseShop
 
+![](https://github.com/bl-3an-dev/ItemCaseShop/blob/main/shop.PNG)
+
 - /shop [add|a] [구매가] [판매가] | 상점 아이템을 추가합니다
 - /shop [del|d]                  | 상점 아이템을 삭제합니다
 
