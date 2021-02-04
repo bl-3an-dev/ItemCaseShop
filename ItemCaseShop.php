@@ -224,8 +224,8 @@ class ShopCommand extends Command{
 
         if (!isset($args[0])){
 
-            $sender->sendMessage($this->owner->prefix . ' /shop [add|a] [구매가] [판매가] : 상점을 추가합니다');
-            $sender->sendMessage($this->owner->prefix . ' /shop [del|d] : 상점을 제거합니다');
+            $sender->sendMessage($this->owner->prefix . ' /shop [add|a] [구매가] [판매가] : 상점 아이템을 추가합니다');
+            $sender->sendMessage($this->owner->prefix . ' /shop [del|d] : 상점 아이템을 삭제합니다');
 
             return true;
 
@@ -235,7 +235,7 @@ class ShopCommand extends Command{
 
             if (count($args) < 3){
 
-                $sender->sendMessage($this->owner->prefix . ' /shop [add|a] [구매가] [판매가] : 상점을 추가합니다');
+                $sender->sendMessage($this->owner->prefix . ' /shop [add|a] [구매가] [판매가] : 상점 아이템을 추가합니다');
 
                 return true;
 
@@ -249,7 +249,7 @@ class ShopCommand extends Command{
     
             }
 
-            $sender->sendMessage($this->owner->prefix . ' 상점 추가를 하려면 들고 있는 아이템을 유리에 터치하세요');
+            $sender->sendMessage($this->owner->prefix . ' 상점 아이템을 추가하려면 들고 있는 아이템을 유리에 터치하세요');
 
             $this->owner->add[$sender->getName()] = [];
             $this->owner->add[$sender->getName()]['buy'] = $args[1];
@@ -261,7 +261,7 @@ class ShopCommand extends Command{
 
         if ($args[0] === 'del' or $args[0] === 'd'){
 
-            $sender->sendMessage($this->owner->prefix . ' 상점 제거를 하려면 아이템을 제거할 유리를 터치하세요');
+            $sender->sendMessage($this->owner->prefix . ' 상점 아이템을 삭제하려면 아이템을 제거할 유리를 터치하세요');
             
             $this->owner->del[$sender->getName()] = [];
 
@@ -455,7 +455,7 @@ class EventListener implements \pocketmine\event\Listener{
 
                 if (isset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]) and isset($this->owner->del[$player->getName()])){
 
-                    $player->sendMessage($this->owner->prefix . ' 성공적으로 상점 아이템을 제거했습니다');
+                    $player->sendMessage($this->owner->prefix . ' 성공적으로 상점 아이템을 삭제했습니다');
 
                     $this->owner->delCase($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z]);
                     unset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]);
@@ -480,8 +480,7 @@ class EventListener implements \pocketmine\event\Listener{
                     $player->sendMessage($this->owner->prefix . ' /구매 (갯수) or /판매 (갯수)');
                     $player->sendMessage('- - - - - - - - - -');
 
-                    $player->sendPopUp('구매가: §7' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['buy']));
-                    $player->sendPopUp('판매가: §7' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['sell']));
+                    $player->sendPopUp('§f구매가: §a' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['buy']) . "\n" . '§f판매가: §a' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['sell']));
 
                     $this->owner->touch[$player->getName()] = $block->x . ':' . $block->y . ':' . $block->z;
 
