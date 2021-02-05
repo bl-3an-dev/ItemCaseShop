@@ -4,7 +4,7 @@
  * @name ItemCaseShop
  * @main ItemCaseShop\Loader
  * @author bl_3an_dev
- * @version 1.0.1v
+ * @version 1.0.2v
  * @api 3.0.0
  */
 
@@ -13,6 +13,7 @@
  *  - LICENSE : https://github.com/bl-3an-dev/ItemCaseShop/blob/main/LICENSE
  *  - 1.0.0v | 첫 릴리즈
  *  - 1.0.1v | is_numeric 관련 추가
+ *  - 1.0.2v | 중복 추가 방지 및 상점 작업 개선
  *  - 구동하는데 앞서 EconomyAPI 플러그인이 필요합니다.
  */
 
@@ -439,6 +440,16 @@ class EventListener implements \pocketmine\event\Listener{
 
                 if (isset($this->owner->add[$player->getName()])){
 
+                    if (isset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z])){
+
+                        $player->sendMessage($this->owner->prefix . ' 이미 상점 아이템이 설정되어있습니다');
+
+                        $event->setCancelled();
+
+                        return true;
+
+                    }
+
                     $player->sendMessage($this->owner->prefix . ' 성공적으로 상점 아이템을 추가했습니다');
 
                     $this->owner->addCase($item, [$block->x, $block->y, $block->z]);
@@ -452,20 +463,29 @@ class EventListener implements \pocketmine\event\Listener{
 
                     unset($this->owner->add[$player->getName()]);
 
-                }
+                    $event->setCancelled();
 
-                if (isset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]) and isset($this->owner->del[$player->getName()])){
-
-                    $player->sendMessage($this->owner->prefix . ' 성공적으로 상점 아이템을 삭제했습니다');
-
-                    $this->owner->delCase($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z]);
-                    unset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]);
-                    unset($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z]);
-                    unset($this->owner->del[$player->getName()]);
+                    return true;
 
                 }
                 
                 if (isset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z])){
+
+                    if (isset($this->owner->del[$player->getName()])){
+
+                        $player->sendMessage($this->owner->prefix . ' 성공적으로 상점 아이템을 삭제했습니다');
+
+                        $this->owner->delCase($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z]);
+
+                        unset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]);
+                        unset($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z]);
+                        unset($this->owner->del[$player->getName()]);
+
+                        $event->setCancelled();
+
+                        return true;
+
+                    }
 
                     $item = Item::jsonDeserialize([
                         'id' => $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['id'],
@@ -484,6 +504,10 @@ class EventListener implements \pocketmine\event\Listener{
                     $player->sendPopUp('§f구매가: §a' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['buy']) . "\n" . '§f판매가: §a' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['sell']));
 
                     $this->owner->touch[$player->getName()] = $block->x . ':' . $block->y . ':' . $block->z;
+
+                    $event->setCancelled();
+
+                    return true;
 
                 }
 
