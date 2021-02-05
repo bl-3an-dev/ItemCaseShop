@@ -79,29 +79,29 @@ class Loader extends \pocketmine\plugin\PluginBase{
     }
 
     public function koreanWonFormat($money): string { // from solo5star , EconomyAPI
-
+        
         $str = '';
         
         $elements = [];
         
-		if ($money >= 1000000000000){
-
+        if ($money >= 1000000000000){
+            
             $elements[] = floor($money / 1000000000000) . '조';
             
             $money %= 1000000000000;
             
         }
         
-		if ($money >= 100000000){
-
+        if ($money >= 100000000){
+            
             $elements[] = floor($money / 100000000) . '억';
             
             $money %= 100000000;
             
         }
         
-		if ($money >= 10000){
-
+        if ($money >= 10000){
+            
             $elements[] = floor($money / 10000) . '만';
             
             $money %= 10000;
@@ -109,14 +109,14 @@ class Loader extends \pocketmine\plugin\PluginBase{
         }
         
         if (count($elements) == 0 || $money > 0){
-
+            
             $elements[] = $money;
             
         }
         
         return implode(' ', $elements) . '원';
         
-	}
+    }
 
     public function addCase($item, $pos): void {
 
