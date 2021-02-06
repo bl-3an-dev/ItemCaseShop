@@ -4,7 +4,7 @@
  * @name ItemCaseShop
  * @main ItemCaseShop\Loader
  * @author bl_3an_dev
- * @version 1.0.2v
+ * @version 1.0.3v
  * @api 3.0.0
  */
 
@@ -14,6 +14,7 @@
  *  - 1.0.0v | 첫 릴리즈
  *  - 1.0.1v | is_numeric 관련 추가
  *  - 1.0.2v | 중복 추가 방지 및 상점 작업 개선
+ *  - 1.0.3v | 월드 구분, (구매,판매) 불가 추가 및 개선
  *  - 구동하는데 앞서 EconomyAPI 플러그인이 필요합니다.
  */
 
@@ -51,8 +52,11 @@ class Loader extends \pocketmine\plugin\PluginBase{
     /** @var array */
     public $add, $del, $eid, $touch;
 
-    /** @var Config | array */
-    public $data, $db;
+    /** @var Config */
+    public $shop_data;
+
+    /** @var array */
+    public $shop_db;
 
     public $prefix = '§d+§f';
 
@@ -61,8 +65,8 @@ class Loader extends \pocketmine\plugin\PluginBase{
         if (!is_dir($this->getDataFolder()))
             @mkdir($this->getDataFolder());
         
-        $this->data = new Config($this->getDataFolder() . 'shop.json', Config::JSON);
-        $this->db = $this->data->getAll();
+        $this->shop_data = new Config($this->getDataFolder() . 'shop.json', Config::JSON);
+        $this->shop_db = $this->shop_data->getAll();
 
         $this->getServer()->getCommandMap()->register('MC', new ShopCommand($this));
         $this->getServer()->getCommandMap()->register('BC', new BuyCommand($this));
@@ -74,8 +78,8 @@ class Loader extends \pocketmine\plugin\PluginBase{
 
     public function onDisable(): void {
 
-        $this->data->setAll($this->db);
-        $this->data->save();
+        $this->shop_data->setAll($this->shop_db);
+        $this->shop_data->save();
 
     }
 
@@ -119,11 +123,11 @@ class Loader extends \pocketmine\plugin\PluginBase{
         
     }
 
-    public function addCase($item, $pos): void {
+    public function addCase($item, $pos, $player): void {
 
         $pk = new AddItemActorPacket();
 
-        $pk->entityRuntimeId = $this->eid[$pos[0] . ':' . $pos[1] . ':' . $pos[2]] = Entity::$entityCount++;
+        $pk->entityRuntimeId = $this->eid[$pos[0] . ':' . $pos[1] . ':' . $pos[2] . ':' . $pos[3]] = Entity::$entityCount++;
 
         $pk->item = $item->setCount(1);
 
@@ -137,25 +141,25 @@ class Loader extends \pocketmine\plugin\PluginBase{
             Entity::DATA_ALWAYS_SHOW_NAMETAG => [Entity::DATA_TYPE_BYTE, 1]
         ];
 
-        foreach($this->getServer()->getOnlinePlayers() as $players){
+        foreach($player->getLevel()->getPlayers() as $players){
 
             $players->sendDataPacket($pk);
 
         }
 
-        $this->addTag($item, $pos);
+        $this->addTag($item, $pos, $player);
 
     }
 
-    public function addTag($item, $pos): void {
+    public function addTag($item, $pos, $player): void {
 
         $pk = new SetActorDataPacket();
 
-        $pk->entityRuntimeId = $this->eid[$pos[0] . ':' . $pos[1] . ':' . $pos[2]];
+        $pk->entityRuntimeId = $this->eid[$pos[0] . ':' . $pos[1] . ':' . $pos[2] . ':' . $pos[3]];
 
         $pk->metadata = [Entity::DATA_NAMETAG => [Entity::DATA_NAMETAG, $item->getName()]];
 
-        foreach($this->getServer()->getOnlinePlayers() as $players){
+        foreach($player->getLevel()->getPlayers() as $players){
 
             $players->sendDataPacket($pk);
 
@@ -163,13 +167,13 @@ class Loader extends \pocketmine\plugin\PluginBase{
 
     }
 
-    public function delCase($eid): void {
+    public function delCase($eid, $player): void {
 
         $pk = new RemoveActorPacket();
 
         $pk->entityUniqueId = $eid;
 
-        foreach($this->getServer()->getOnlinePlayers() as $players){
+        foreach($player->getLevel()->getPlayers() as $players){
 
             $players->sendDataPacket($pk);
 
@@ -177,12 +181,12 @@ class Loader extends \pocketmine\plugin\PluginBase{
 
     }
 
-    public function spawnCase(): void {
+    public function spawnCase($player): void {
 
-        if (!isset($this->db['shop']))
+        if (!isset($this->shop_db['shop']))
             return;
 
-        foreach($this->db['shop'] as $datas => $key){
+        foreach($this->shop_db['shop'] as $datas => $key){
 
             $pos = explode(':', $datas);
 
@@ -193,9 +197,25 @@ class Loader extends \pocketmine\plugin\PluginBase{
                 'nbt' => base64_decode($key['nbt'], true)
             ]);
 
-            $this->addCase($item, $pos);
+            $this->addCase($item, $pos, $player);
 
         }
+
+    }
+
+    public function getList($contents): void {
+
+        var_dump($contents);
+
+        /*if (!isset($this->shop_db['shop']))
+            return;
+
+        foreach($this->shop_db['shop'] as $datas => $key){
+
+            $buy = $key['buy'];
+            $sell = $key['sell'];
+
+        }*/
 
     }
 
@@ -204,7 +224,7 @@ class Loader extends \pocketmine\plugin\PluginBase{
 class ShopCommand extends Command{
 
     /** @var Loader */
-    public $owner;
+    private $owner;
 
     public function __construct(Loader $owner){
 
@@ -278,7 +298,7 @@ class ShopCommand extends Command{
 class BuyCommand extends Command{
 
     /** @var Loader */
-    public $owner;
+    private $owner;
 
     public function __construct(Loader $owner){
 
@@ -306,7 +326,15 @@ class BuyCommand extends Command{
 
         }
 
-        $price = $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['buy'];
+        if ($this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['buy'] <= 0){
+
+            $sender->sendMessage($this->owner->prefix . ' 아이템을 구매할 할 수 없습니다');
+
+            return true;
+
+        }
+
+        $price = $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['buy'];
 
         if (EconomyAPI::getInstance()->myMoney($sender) < $price * $args[0]){
 
@@ -316,10 +344,10 @@ class BuyCommand extends Command{
         }
 
         $item = Item::jsonDeserialize([
-            'id' => $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['id'],
-            'damage' => $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['dmg'],
+            'id' => $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['id'],
+            'damage' => $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['dmg'],
             'count' => (int) $args[0],
-            'nbt' => base64_decode($this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['nbt'], true)
+            'nbt' => base64_decode($this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['nbt'], true)
         ]);
 
         $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
@@ -344,7 +372,7 @@ class BuyCommand extends Command{
 class SellCommand extends Command{
 
     /** @var Loader */
-    public $owner;
+    private $owner;
 
     public function __construct(Loader $owner){
 
@@ -372,11 +400,19 @@ class SellCommand extends Command{
 
         }
 
+        if ($this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['sell'] <= 0){
+
+            $sender->sendMessage($this->owner->prefix . ' 아이템을 판매할 할 수 없습니다');
+
+            return true;
+
+        }
+
         $item = Item::jsonDeserialize([
-            'id' => $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['id'],
-            'damage' => $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['dmg'],
+            'id' => $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['id'],
+            'damage' => $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['dmg'],
             'count' => (int) $args[0],
-            'nbt' => base64_decode($this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['nbt'], true)
+            'nbt' => base64_decode($this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['nbt'], true)
         ]);
 
         if (!$sender->getInventory()->contains($item)){
@@ -387,7 +423,7 @@ class SellCommand extends Command{
 
         }
 
-        $price = $this->owner->db['shop'][$this->owner->touch[$sender->getName()]]['sell'];
+        $price = $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['sell'];
 
         $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
@@ -408,11 +444,10 @@ class SellCommand extends Command{
 
 }
 
-
 class EventListener implements \pocketmine\event\Listener{
 
     /** @var Loader */
-    public $owner;
+    private $owner;
 
     public function __construct(Loader $owner){
 
@@ -422,9 +457,7 @@ class EventListener implements \pocketmine\event\Listener{
 
     public function onJoin(PlayerJoinEvent $event){
 
-        $player = $event->getPlayer();
-
-        $this->owner->spawnCase();
+        $this->owner->spawnCase($event->getPlayer());
 
     }
 
@@ -440,7 +473,7 @@ class EventListener implements \pocketmine\event\Listener{
 
                 if (isset($this->owner->add[$player->getName()])){
 
-                    if (isset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z])){
+                    if (isset($this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()])){
 
                         $player->sendMessage($this->owner->prefix . ' 이미 상점 아이템이 설정되어있습니다');
 
@@ -452,14 +485,14 @@ class EventListener implements \pocketmine\event\Listener{
 
                     $player->sendMessage($this->owner->prefix . ' 성공적으로 상점 아이템을 추가했습니다');
 
-                    $this->owner->addCase($item, [$block->x, $block->y, $block->z]);
+                    $this->owner->addCase($item, [$block->x, $block->y, $block->z, $block->getLevel()->getFolderName()], $player);
 
-                    $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z] = [];
-                    $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['id'] = $item->getId();
-                    $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['dmg'] = $item->getDamage();
-                    $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['nbt'] = base64_encode($item->getCompoundTag());
-                    $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['buy'] = $this->owner->add[$player->getName()]['buy'];
-                    $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['sell'] = $this->owner->add[$player->getName()]['sell'];
+                    $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()] = [];
+                    $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['id'] = $item->getId();
+                    $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['dmg'] = $item->getDamage();
+                    $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['nbt'] = base64_encode($item->getCompoundTag());
+                    $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['buy'] = $this->owner->add[$player->getName()]['buy'];
+                    $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['sell'] = $this->owner->add[$player->getName()]['sell'];
 
                     unset($this->owner->add[$player->getName()]);
 
@@ -469,16 +502,16 @@ class EventListener implements \pocketmine\event\Listener{
 
                 }
                 
-                if (isset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z])){
+                if (isset($this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()])){
 
                     if (isset($this->owner->del[$player->getName()])){
 
                         $player->sendMessage($this->owner->prefix . ' 성공적으로 상점 아이템을 삭제했습니다');
 
-                        $this->owner->delCase($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z]);
+                        $this->owner->delCase($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()], $player);
 
-                        unset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]);
-                        unset($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z]);
+                        unset($this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]);
+                        unset($this->owner->eid[$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]);
                         unset($this->owner->del[$player->getName()]);
 
                         $event->setCancelled();
@@ -488,22 +521,25 @@ class EventListener implements \pocketmine\event\Listener{
                     }
 
                     $item = Item::jsonDeserialize([
-                        'id' => $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['id'],
-                        'damage' => $this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['dmg'],
+                        'id' => $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['id'],
+                        'damage' => $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['dmg'],
                         'count' => 1,
-                        'nbt' => base64_decode($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['nbt'], true)
+                        'nbt' => base64_decode($this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['nbt'], true)
                     ]);
+
+                    $buy_price = $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['buy'];
+                    $sell_price = $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['sell'];
                     
                     $player->sendMessage('- - - - - - - - - -');
                     $player->sendMessage($this->owner->prefix . ' 아이템 이름: ' . $item->getName());
-                    $player->sendMessage($this->owner->prefix . ' 구매가: §a' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['buy']));
-                    $player->sendMessage($this->owner->prefix . ' 판매가: §a' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['sell']));
+                    $player->sendMessage($this->owner->prefix . ' 구매가: §a' . (($buy_price <= 0) ? '§c구매 불가' : $this->owner->koreanWonFormat($buy_price)));
+                    $player->sendMessage($this->owner->prefix . ' 판매가: §a' . (($sell_price <= 0) ? '§c판매 불가' : $this->owner->koreanWonFormat($sell_price)));
                     $player->sendMessage($this->owner->prefix . ' /구매 (갯수) or /판매 (갯수)');
                     $player->sendMessage('- - - - - - - - - -');
 
-                    $player->sendPopUp('§f구매가: §a' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['buy']) . "\n" . '§f판매가: §a' . $this->owner->koreanWonFormat($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z]['sell']));
+                    $player->sendPopUp('§f구매가: §a' . (($buy_price <= 0) ? '§c구매 불가' : $this->owner->koreanWonFormat($buy_price)) . "\n" . '§f판매가: §a' . (($sell_price <= 0) ? '§c판매 불가' : $this->owner->koreanWonFormat($sell_price)));
 
-                    $this->owner->touch[$player->getName()] = $block->x . ':' . $block->y . ':' . $block->z;
+                    $this->owner->touch[$player->getName()] = $block->x . ':' . $block->y . ':' . $block->z. ':' . $block->getLevel()->getFolderName();
 
                     $event->setCancelled();
 
@@ -522,7 +558,7 @@ class EventListener implements \pocketmine\event\Listener{
         $player = $event->getPlayer();
         $block = $event->getBlock();
         
-        if (isset($this->owner->db['shop'][$block->x . ':' . $block->y . ':' . $block->z])){
+        if (isset($this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()])){
 
             $event->setCancelled();
 
