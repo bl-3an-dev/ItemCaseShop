@@ -4,7 +4,7 @@
  * @name ItemCaseShop
  * @main ItemCaseShop\Loader
  * @author bl_3an_dev
- * @version 1.0.3v
+ * @version 1.0.4v
  * @api 3.0.0
  */
 
@@ -15,6 +15,7 @@
  *  - 1.0.1v | is_numeric 관련 추가
  *  - 1.0.2v | 중복 추가 방지 및 상점 작업 개선
  *  - 1.0.3v | 월드 구분, (구매,판매) 불가 추가 및 개선
+ *  - 1.0.4v | 판매전체 추가 및 개선
  *  - 구동하는데 앞서 EconomyAPI 플러그인이 필요합니다.
  */
 
@@ -71,6 +72,7 @@ class Loader extends \pocketmine\plugin\PluginBase{
         $this->getServer()->getCommandMap()->register('MC', new ShopCommand($this));
         $this->getServer()->getCommandMap()->register('BC', new BuyCommand($this));
         $this->getServer()->getCommandMap()->register('SC', new SellCommand($this));
+        $this->getServer()->getCommandMap()->register('SAC', new SellAllCommand($this));
 
         $this->getServer()->getPluginManager()->registerEvents(new EventListener($this), $this);
 
@@ -193,7 +195,6 @@ class Loader extends \pocketmine\plugin\PluginBase{
             $item = Item::jsonDeserialize([
                 'id' => $key['id'],
                 'damage' => $key['dmg'],
-                'count' => 1,
                 'nbt' => base64_decode($key['nbt'], true)
             ]);
 
@@ -203,19 +204,59 @@ class Loader extends \pocketmine\plugin\PluginBase{
 
     }
 
-    public function getList($contents): void {
+    public function getItemPrice($item): array {
 
-        var_dump($contents);
+        $item_price = [];
 
-        /*if (!isset($this->shop_db['shop']))
+        if (!isset($this->shop_db['shop']))
+            return $item_price;
+
+        foreach($this->shop_db['shop'] as $datas => $key){
+
+            $items = Item::jsonDeserialize([
+                'id' => $key['id'],
+                'damage' => $key['dmg'],
+                'count' => $item->getCount(),
+                'nbt' => base64_decode($key['nbt'], true)
+            ]);
+
+            if ($item == $items){
+
+                $item_price['buy'] = $key['buy'];
+                $item_price['sell'] = $key['sell'];
+
+                break;
+
+            }
+
+        }
+
+        return $item_price;
+
+    }
+
+    public function setItemPrice($item, $buy_price, $sell_price): void {
+
+        if (!isset($this->shop_db['shop']))
             return;
 
         foreach($this->shop_db['shop'] as $datas => $key){
 
-            $buy = $key['buy'];
-            $sell = $key['sell'];
+            $items = Item::jsonDeserialize([
+                'id' => $key['id'],
+                'damage' => $key['dmg'],
+                'count' => $item->getCount(),
+                'nbt' => base64_decode($key['nbt'], true)
+            ]);
 
-        }*/
+            if ($item == $items){
+
+                $this->shop_db['shop'][$datas]['buy'] = $buy_price;
+                $this->shop_db['shop'][$datas]['sell'] = $sell_price;
+
+            }
+
+        }
 
     }
 
@@ -263,15 +304,26 @@ class ShopCommand extends Command{
 
             }
 
-            if ($sender->getInventory()->getItemInHand()->getId() === Item::AIR){
+            if (isset($this->owner->add[$sender->getName()])){
 
-                $sender->sendMessage('failed');
+                $sender->sendMessage($this->owner->prefix . ' 이미 상점 아이템 추가 모드가 켜져있습니다');
+
+                return true;
+
+            }
+
+            $item = $sender->getInventory()->getItemInHand();
+
+            if ($item->getId() === Item::AIR){
+
+                $sender->sendMessage($this->owner->prefix . ' 상점 아이템을 추가할 아이템을 들어주세요');
     
                 return true;
     
             }
 
             $sender->sendMessage($this->owner->prefix . ' 상점 아이템을 추가하려면 들고 있는 아이템을 유리에 터치하세요');
+            $sender->sendMessage($this->owner->prefix . ' 상점 아이템 추가 모드가 켜졌습니다');
 
             $this->owner->add[$sender->getName()] = [];
             $this->owner->add[$sender->getName()]['buy'] = $args[1];
@@ -310,7 +362,7 @@ class BuyCommand extends Command{
 
     public function execute(CommandSender $sender, string $commandLabel, array $args): bool {
 
-        if (!isset($args[0]) or !is_numeric($args[0])){
+        if (!isset($args[0]) or !is_numeric($args[0]) or $args[0] < 1){
 
             $sender->sendMessage($this->owner->prefix . ' /구매 (갯수) | 선택한 상점 아이템을 갯수만큼 구매합니다');
 
@@ -334,9 +386,9 @@ class BuyCommand extends Command{
 
         }
 
-        $price = $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['buy'];
+        $buy_price = $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['buy'];
 
-        if (EconomyAPI::getInstance()->myMoney($sender) < $price * $args[0]){
+        if (EconomyAPI::getInstance()->myMoney($sender) < $buy_price * $args[0]){
 
             $sender->sendMessage($this->owner->prefix . ' 아이템을 구매할 돈이 부족합니다');
 
@@ -352,7 +404,7 @@ class BuyCommand extends Command{
 
         $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
-        EconomyAPI::getInstance()->reduceMoney($sender, $price * (int) $args[0]);
+        EconomyAPI::getInstance()->reduceMoney($sender, $buy_price * (int) $args[0]);
 
         $after = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
@@ -384,7 +436,7 @@ class SellCommand extends Command{
 
     public function execute(CommandSender $sender, string $commandLabel, array $args): bool {
 
-        if (!isset($args[0]) or !is_numeric($args[0])){
+        if (!isset($args[0]) or !is_numeric($args[0]) or $args[0] < 1){
 
             $sender->sendMessage($this->owner->prefix . ' /판매 (갯수) | 선택한 상점 아이템을 갯수만큼 판매합니다');
 
@@ -423,11 +475,11 @@ class SellCommand extends Command{
 
         }
 
-        $price = $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['sell'];
+        $sell_price = $this->owner->shop_db['shop'][$this->owner->touch[$sender->getName()]]['sell'];
 
         $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
-        EconomyAPI::getInstance()->addMoney($sender, $price * (int) $args[0]);
+        EconomyAPI::getInstance()->addMoney($sender, $sell_price * (int) $args[0]);
 
         $after = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
@@ -437,6 +489,56 @@ class SellCommand extends Command{
         $sender->getInventory()->removeItem($item);
 
         unset($this->owner->touch[$sender->getName()]);
+
+        return true;
+
+    }
+
+}
+
+class SellAllCommand extends Command{
+
+    /** @var Loader */
+    private $owner;
+
+    public function __construct(Loader $owner){
+
+        $this->owner = $owner;
+
+        parent::__construct('판매전체', 'SellAllCommand', '/판매전체');
+
+    }
+
+    public function execute(CommandSender $sender, string $commandLabel, array $args): bool {
+
+        $this->inventoryIndex = 0;
+
+        $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
+
+        while ($this->inventoryIndex < $sender->getInventory()->getSize()){
+
+            $content = $sender->getInventory()->getItem($this->inventoryIndex++);
+
+            if (!$content instanceof Item || $content->getId() == Item::AIR){
+                continue;
+            }
+
+            $item_price = $this->owner->getItemPrice($content);
+
+            if (!isset($item_price['sell']) or  $item_price['sell'] <= 0){
+                continue;
+            }
+
+            EconomyAPI::getInstance()->addMoney($sender, $item_price['sell'] * $content->getCount());
+
+            $sender->getInventory()->removeItem($content);
+            
+        }
+
+        $after = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
+
+        $sender->sendMessage($this->owner->prefix . ' 인벤토리에 있는 모든 아이템을 판매했습니다');
+        $sender->sendMessage($this->owner->prefix . ' 변경: ' . $before . ' -> ' . $after);
 
         return true;
 
@@ -483,14 +585,23 @@ class EventListener implements \pocketmine\event\Listener{
 
                     }
 
+                    if (!empty($this->owner->getItemPrice($item))){
+
+                        $player->sendMessage($this->owner->prefix . ' 해당 아이템의 모든 §a구매가격§f과 §a판매가격§f이 변경되었습니다');
+        
+                        $this->owner->setItemPrice($item, $this->owner->add[$player->getName()]['buy'], $this->owner->add[$player->getName()]['sell']);
+        
+                    }
+
                     $player->sendMessage($this->owner->prefix . ' 성공적으로 상점 아이템을 추가했습니다');
+                    $player->sendMessage($this->owner->prefix . ' 상점 아이템 추가 모드가 꺼졌습니다');
 
                     $this->owner->addCase($item, [$block->x, $block->y, $block->z, $block->getLevel()->getFolderName()], $player);
 
                     $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()] = [];
                     $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['id'] = $item->getId();
                     $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['dmg'] = $item->getDamage();
-                    $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['nbt'] = base64_encode($item->getCompoundTag());
+                    $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['nbt'] = $item->hasCompoundTag() ? base64_encode($item->getCompoundTag()) : '';
                     $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['buy'] = $this->owner->add[$player->getName()]['buy'];
                     $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['sell'] = $this->owner->add[$player->getName()]['sell'];
 
@@ -523,7 +634,6 @@ class EventListener implements \pocketmine\event\Listener{
                     $item = Item::jsonDeserialize([
                         'id' => $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['id'],
                         'damage' => $this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['dmg'],
-                        'count' => 1,
                         'nbt' => base64_decode($this->owner->shop_db['shop'][$block->x . ':' . $block->y . ':' . $block->z . ':' . $block->getLevel()->getFolderName()]['nbt'], true)
                     ]);
 
@@ -532,12 +642,12 @@ class EventListener implements \pocketmine\event\Listener{
                     
                     $player->sendMessage('- - - - - - - - - -');
                     $player->sendMessage($this->owner->prefix . ' 아이템 이름: ' . $item->getName());
-                    $player->sendMessage($this->owner->prefix . ' 구매가: §a' . (($buy_price <= 0) ? '§c구매 불가' : $this->owner->koreanWonFormat($buy_price)));
-                    $player->sendMessage($this->owner->prefix . ' 판매가: §a' . (($sell_price <= 0) ? '§c판매 불가' : $this->owner->koreanWonFormat($sell_price)));
+                    $player->sendMessage($this->owner->prefix . ' 구매가: §a' . ($buy_price <= 0 ? '§c구매 불가' : $this->owner->koreanWonFormat($buy_price)));
+                    $player->sendMessage($this->owner->prefix . ' 판매가: §a' . ($sell_price <= 0 ? '§c판매 불가' : $this->owner->koreanWonFormat($sell_price)));
                     $player->sendMessage($this->owner->prefix . ' /구매 (갯수) or /판매 (갯수)');
                     $player->sendMessage('- - - - - - - - - -');
 
-                    $player->sendPopUp('§f구매가: §a' . (($buy_price <= 0) ? '§c구매 불가' : $this->owner->koreanWonFormat($buy_price)) . "\n" . '§f판매가: §a' . (($sell_price <= 0) ? '§c판매 불가' : $this->owner->koreanWonFormat($sell_price)));
+                    $player->sendPopUp('§f구매가: §a' . ($buy_price <= 0 ? '§c구매 불가' : $this->owner->koreanWonFormat($buy_price)) . "\n" . '§f판매가: §a' . ($sell_price <= 0 ? '§c판매 불가' : $this->owner->koreanWonFormat($sell_price)));
 
                     $this->owner->touch[$player->getName()] = $block->x . ':' . $block->y . ':' . $block->z. ':' . $block->getLevel()->getFolderName();
 
@@ -567,3 +677,5 @@ class EventListener implements \pocketmine\event\Listener{
     }
 
 }
+
+?>
