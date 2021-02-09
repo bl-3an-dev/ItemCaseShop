@@ -4,7 +4,7 @@
  * @name ItemCaseShop
  * @main ItemCaseShop\Loader
  * @author bl_3an_dev
- * @version 1.0.4v
+ * @version 1.0.45v
  * @api 3.0.0
  */
 
@@ -16,6 +16,7 @@
  *  - 1.0.2v | 중복 추가 방지 및 상점 작업 개선
  *  - 1.0.3v | 월드 구분, (구매,판매) 불가 추가 및 개선
  *  - 1.0.4v | 판매전체 추가 및 개선
+ *  - 1.0.45v | 개선
  *  - 구동하는데 앞서 EconomyAPI 플러그인이 필요합니다.
  */
 
@@ -515,17 +516,17 @@ class SellAllCommand extends Command{
 
         $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
-        while ($this->inventoryIndex < $sender->getInventory()->getSize()){
+        while ($this->inventoryIndex < $sender->getInventory()->getSize()){ // from solo5star , SMarket
 
             $content = $sender->getInventory()->getItem($this->inventoryIndex++);
 
-            if (!$content instanceof Item || $content->getId() == Item::AIR){
+            if (!$content instanceof Item || $content->getId() === Item::AIR){
                 continue;
             }
 
             $item_price = $this->owner->getItemPrice($content);
 
-            if (!isset($item_price['sell']) or  $item_price['sell'] <= 0){
+            if (empty($item_price)){
                 continue;
             }
 
