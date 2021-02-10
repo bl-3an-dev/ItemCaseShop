@@ -4,7 +4,7 @@
  * @name ItemCaseShop
  * @main ItemCaseShop\Loader
  * @author bl_3an_dev
- * @version 1.0.45v
+ * @version 1.0.5v
  * @api 3.0.0
  */
 
@@ -17,6 +17,7 @@
  *  - 1.0.3v | 월드 구분, (구매,판매) 불가 추가 및 개선
  *  - 1.0.4v | 판매전체 추가 및 개선
  *  - 1.0.45v | 개선
+ *  - 1.0.5v | 색유리 지원 및 버그 개선
  *  - 구동하는데 앞서 EconomyAPI 플러그인이 필요합니다.
  */
 
@@ -130,7 +131,13 @@ class Loader extends \pocketmine\plugin\PluginBase{
 
         $pk = new AddItemActorPacket();
 
-        $pk->entityRuntimeId = $this->eid[$pos[0] . ':' . $pos[1] . ':' . $pos[2] . ':' . $pos[3]] = Entity::$entityCount++;
+        if (!isset($this->eid[$pos[0] . ':' . $pos[1] . ':' . $pos[2] . ':' . $pos[3]])){
+
+            $this->eid[$pos[0] . ':' . $pos[1] . ':' . $pos[2] . ':' . $pos[3]] = Entity::$entityCount++;
+
+        }
+
+        $pk->entityRuntimeId = $this->eid[$pos[0] . ':' . $pos[1] . ':' . $pos[2] . ':' . $pos[3]];
 
         $pk->item = $item->setCount(1);
 
@@ -278,7 +285,7 @@ class ShopCommand extends Command{
 
     public function execute(CommandSender $sender, string $commandLabel, array $args): bool {
 
-        if (!($sender instanceof Player) or !$sender->isOp()){
+        if (!($sender instanceof Player) || !$sender->isOp()){
 
             $sender->sendMessage($this->owner->prefix . ' 해당 명령어를 실행 할 수 없습니다');
 
@@ -295,9 +302,9 @@ class ShopCommand extends Command{
 
         }
 
-        if ($args[0] === 'add' or $args[0] === 'a'){
+        if ($args[0] === 'add' || $args[0] === 'a'){
 
-            if (count($args) < 3 or !is_numeric($args[1]) or !is_numeric($args[2])){
+            if (count($args) < 3 || !is_numeric($args[1]) || !is_numeric($args[2])){
 
                 $sender->sendMessage($this->owner->prefix . ' /shop [add|a] [구매가] [판매가] : 상점 아이템을 추가합니다');
 
@@ -334,7 +341,7 @@ class ShopCommand extends Command{
 
         }
 
-        if ($args[0] === 'del' or $args[0] === 'd'){
+        if ($args[0] === 'del' || $args[0] === 'd'){
 
             $sender->sendMessage($this->owner->prefix . ' 상점 아이템을 삭제하려면 아이템을 제거할 유리를 터치하세요');
             
@@ -363,7 +370,7 @@ class BuyCommand extends Command{
 
     public function execute(CommandSender $sender, string $commandLabel, array $args): bool {
 
-        if (!isset($args[0]) or !is_numeric($args[0]) or $args[0] < 1){
+        if (!isset($args[0]) || !is_numeric($args[0]) || $args[0] < 1){
 
             $sender->sendMessage($this->owner->prefix . ' /구매 (갯수) | 선택한 상점 아이템을 갯수만큼 구매합니다');
 
@@ -437,7 +444,7 @@ class SellCommand extends Command{
 
     public function execute(CommandSender $sender, string $commandLabel, array $args): bool {
 
-        if (!isset($args[0]) or !is_numeric($args[0]) or $args[0] < 1){
+        if (!isset($args[0]) || !is_numeric($args[0]) || $args[0] < 1){
 
             $sender->sendMessage($this->owner->prefix . ' /판매 (갯수) | 선택한 상점 아이템을 갯수만큼 판매합니다');
 
@@ -572,7 +579,7 @@ class EventListener implements \pocketmine\event\Listener{
 
         if ($event->getAction() === PlayerInteractEvent::RIGHT_CLICK_BLOCK){
 
-            if ($block->getId() === Block::GLASS){
+            if ($block->getId() === Block::GLASS || $block->getId() === Block::STAINED_GLASS){
 
                 if (isset($this->owner->add[$player->getName()])){
 
