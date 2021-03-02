@@ -4,7 +4,7 @@
  * @name ItemCaseShop
  * @main ItemCaseShop\Loader
  * @author bl_3an_dev
- * @version 1.0.5v
+ * @version 1.0.6v
  * @api 3.0.0
  */
 
@@ -18,6 +18,7 @@
  *  - 1.0.4v | 판매전체 추가 및 개선
  *  - 1.0.45v | 개선
  *  - 1.0.5v | 색유리 지원 및 아이템 스폰 버그 개선
+ *  - 1.0.6v | 판매불가 판매 버그 해결
  *  - 구동하는데 앞서 EconomyAPI 플러그인이 필요합니다.
  */
 
@@ -534,6 +535,10 @@ class SellAllCommand extends Command{
             $item_price = $this->owner->getItemPrice($content);
 
             if (empty($item_price)){
+                continue;
+            }
+
+            if ($item_price['sell'] <= 0){
                 continue;
             }
 
