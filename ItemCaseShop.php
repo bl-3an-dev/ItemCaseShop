@@ -18,7 +18,7 @@
  *  - 1.0.4v | 판매전체 추가 및 개선
  *  - 1.0.45v | 개선
  *  - 1.0.5v | 색유리 지원 및 아이템 스폰 버그 개선
- *  - 1.0.6v | 판매불가 판매 버그 해결
+ *  - 1.0.6v | 판매불가 판매 버그 해결, 판매된 아이템 표시
  *  - 구동하는데 앞서 EconomyAPI 플러그인이 필요합니다.
  */
 
@@ -522,6 +522,8 @@ class SellAllCommand extends Command{
 
         $this->inventoryIndex = 0;
 
+        $itemList = [];
+
         $before = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
         while ($this->inventoryIndex < $sender->getInventory()->getSize()){ // from solo5star , SMarket
@@ -542,6 +544,8 @@ class SellAllCommand extends Command{
                 continue;
             }
 
+            $itemList[] = $content->getName();
+
             EconomyAPI::getInstance()->addMoney($sender, $item_price['sell'] * $content->getCount());
 
             $sender->getInventory()->removeItem($content);
@@ -551,6 +555,7 @@ class SellAllCommand extends Command{
         $after = $this->owner->koreanWonFormat(EconomyAPI::getInstance()->myMoney($sender));
 
         $sender->sendMessage($this->owner->prefix . ' 인벤토리에 있는 모든 아이템을 판매했습니다');
+        $sender->sendMessage($this->owner->prefix . ' (' . implode(', ', $itemList) . ')');
         $sender->sendMessage($this->owner->prefix . ' 변경: ' . $before . ' -> ' . $after);
 
         return true;
